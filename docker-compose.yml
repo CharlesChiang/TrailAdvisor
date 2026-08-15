@@ -1,0 +1,42 @@
+# Runs TrailAdvisor on a Synology DS720+, published at https://api.tcchiang.dev.
+#
+# Paste this into Container Manager → Project → Create, or run it over SSH with
+# `docker compose up -d`.
+#
+# Two containers, and the second one is the reason this works without touching the router:
+# `cloudflared` makes an **outbound** connection to Cloudflare and traffic arrives back
+# through it. No port forwarding, no dynamic DNS, and the NAS is never exposed to a public
+# port scan. Cloudflare terminates TLS, so the app gets real HTTPS — which iOS requires for
+# anything that isn't a local address.
+
+services:
+  trailadvisor:
+    image: ghcr.io/CharlesChiang/trail-advisor:latest
+    container_name: trailadvisor
+    restart: unless-stopped
+    environment:
+      # 0.0.0.0 so the tunnel container can reach it across the compose network.
+      HOST: 0.0.0.0
+      PORT: 8080
+      DB_PATH: /app/trailadvisor.sqlite
+    # Deliberately no `ports:` mapping. Nothing outside this compose network needs to
+    # reach the service directly — the tunnel is the only way in, which is the point.
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: trailadvisor-tunnel
+    restart: unless-stopped
+    # The token carries the tunnel's credentials. Put it in a .env file beside this one
+    # rather than inline, and never commit it.
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    depends_on:
+      trailadvisor:
+        condition: service_healthy

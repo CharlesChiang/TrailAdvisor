@@ -1,0 +1,10 @@
+.build/
+.git/
+.swiftpm/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+BRIEF.md
+.DS_Store
+.env
+.env.*

@@ -1,0 +1,12 @@
+.build/
+.swiftpm/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.DS_Store
+
+# The Cloudflare tunnel token lives here. It is a bearer credential: anyone holding it can
+# publish traffic on the tunnel, so it must never reach a public repository.
+.env
+.env.*
+!.env.example

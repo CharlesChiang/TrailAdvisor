@@ -1,0 +1,14 @@
+// A shim so the same SQLite code compiles on macOS and Linux.
+//
+// `import SQLite3` only exists on Apple platforms — it comes from the SDK, not from
+// Swift. On Linux there is no such module, so a system-library target is the portable
+// way to reach libsqlite3.
+//
+// Deliberately no `pkgConfig:`. That attribute is what breaks `gis-tools-geopackage` on
+// iOS, where pkg-config resolves to Homebrew's macOS dylib; `link "sqlite3"` here asks
+// the linker directly and works the same on both platforms.
+module CSQLite [system] {
+    header "shim.h"
+    link "sqlite3"
+    export *
+}
