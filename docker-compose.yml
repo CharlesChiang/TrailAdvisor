@@ -11,7 +11,7 @@
 
 services:
   trailadvisor:
-    image: ghcr.io/CharlesChiang/trail-advisor:latest
+    image: ghcr.io/charleschiang/trailadvisor:latest
     container_name: trailadvisor
     restart: unless-stopped
     environment:
@@ -24,7 +24,8 @@ services:
     expose:
       - "8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/v1/health || exit 1"]
+      # The binary answers this itself; the image contains no wget or curl.
+      test: ["CMD", "./TrailAdvisor", "healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3

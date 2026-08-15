@@ -17,6 +17,17 @@ let ingest = IngestJob(client: OutdooractiveClient(), store: store, logger: logg
 /// `swift run TrailAdvisor ingest` walks Outdooractive and exits — the scheduled job.
 /// Without the argument the HTTP server starts. One binary means the server and the job
 /// can never disagree about the schema.
+/// `TrailAdvisor healthcheck` exits 0 when the store holds routes.
+///
+/// A Docker HEALTHCHECK needs something to run *inside* the container, and this image has
+/// no wget and no curl — `ubuntu:noble` ships neither, and adding one just to poll
+/// ourselves would be a package and an attack surface for nothing. The binary already
+/// knows the answer.
+if CommandLine.arguments.dropFirst().first == "healthcheck" {
+    let info = try? await store.ingestInfo()
+    exit((info?.count ?? 0) > 0 ? 0 : 1)
+}
+
 if CommandLine.arguments.dropFirst().first == "ingest" {
     let count = await ingest.run()
     logger.info("stored \(count) routes")

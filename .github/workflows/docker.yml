@@ -60,12 +60,21 @@ jobs:
 
       - name: Verify the image serves
         run: |
-          docker run -d --name smoke -e HOST=0.0.0.0 -p 8080:8080 \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # Take the tag metadata-action produced rather than rebuilding the name here.
+          # `github.repository` keeps the repo's original capitalisation and Docker
+          # rejects an uppercase image name — metadata-action lowercases it for us.
+          IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          echo "smoke testing $IMAGE"
+          docker run -d --name smoke -e HOST=0.0.0.0 -p 8080:8080 "$IMAGE"
           for i in $(seq 1 30); do
             sleep 1
             if curl -sf localhost:8080/v1/health > /tmp/health.json; then break; fi
           done
+          # Print the container's own output before asserting anything. Without this a
+          # container that dies at exec — a missing shared library, say — fails the job
+          # with nothing but a non-zero exit status to go on.
+          docker logs smoke
+          test -s /tmp/health.json || { echo "service never answered"; exit 1; }
           cat /tmp/health.json
           # A container that starts but holds no routes is a failed build, not a warning:
           # it would deploy cleanly and answer nothing.

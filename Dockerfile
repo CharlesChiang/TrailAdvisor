@@ -42,13 +42,25 @@ RUN .build/release/TrailAdvisor ingest \
 # ---------- runtime ----------
 FROM ubuntu:noble
 
+# `--static-swift-stdlib` links the Swift runtime into the binary but **not** Foundation's
+# own C dependencies: on Linux, Foundation dynamically links libcurl (URLSession) and
+# libxml2. Without them the binary dies at exec with
+# `error while loading shared libraries: libcurl.so.4` — before a single line of Swift
+# runs, so nothing appears in the application log.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libsqlite3-0 ca-certificates tzdata \
+        libcurl4 libxml2 libsqlite3-0 ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Run as a non-root user. Cloud Run does not require it; it is simply correct.
 RUN useradd --user-group --create-home --system --skel /dev/null trailadvisor
 WORKDIR /app
+
+# The *directory* must belong to the app user, not just the database file. SQLite in WAL
+# mode creates `-wal` and `-shm` siblings next to the database when it opens, so a
+# writable file in a root-owned directory still fails with
+# "attempt to write a readonly database" — an error that points at the file and is
+# actually about the directory.
+RUN chown trailadvisor:trailadvisor /app
 
 COPY --from=build --chown=trailadvisor:trailadvisor /src/.build/release/TrailAdvisor ./
 COPY --from=build --chown=trailadvisor:trailadvisor /src/trailadvisor.sqlite ./
@@ -60,5 +72,9 @@ ENV HOST=0.0.0.0 \
     PORT=8080 \
     DB_PATH=/app/trailadvisor.sqlite
 EXPOSE 8080
+
+# Uses the binary's own subcommand rather than wget/curl — neither is in ubuntu:noble.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["./TrailAdvisor", "healthcheck"]
 
 ENTRYPOINT ["./TrailAdvisor"]
