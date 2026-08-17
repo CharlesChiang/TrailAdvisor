@@ -44,10 +44,17 @@ router.get("/v1/health") { _, _ -> HealthResponse in
                               ageHours: nil, coverage: [])
     }
     let ageHours = Date().timeIntervalSince(info.date) / 3600
-    // Stale route data is served anyway — far better than none — but past 72 hours it is
-    // reported degraded so it shows up before anyone notices.
+    // `status` answers exactly one question — can this serve a recommendation — because an
+    // uptime monitor reads it as a binary and nothing else belongs in it.
+    //
+    // It used to also degrade past 72 hours of data age, which was wrong for how this
+    // deploys. The route pool is baked into the image at build time and changes only on a
+    // redeploy, so a service left running (which is what a demo is) would start calling
+    // itself degraded within three days while answering every request correctly. Callers
+    // who care about freshness have `ingestedAt` and `ageHours` to judge it with, and
+    // hiking routes do not go stale on the scale of days.
     return HealthResponse(
-        status: info.count > 0 && ageHours < 72 ? "ok" : "degraded",
+        status: info.count > 0 ? "ok" : "degraded",
         routeCount: info.count,
         ingestedAt: iso8601(info.date),
         ageHours: (ageHours * 10).rounded() / 10,
